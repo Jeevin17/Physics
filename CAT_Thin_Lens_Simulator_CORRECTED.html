@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAT Physics — Thin Lens Simulator</title>
+<style>
+:root{
+  --navy:#0B1F3A; --blue:#2563EB; --violet:#7C3AED; --cyan:#06B6D4;
+  --ink:#263238; --muted:#64748B; --panel:#F8FAFC; --line:#E2E8F0;
+  --real:#2563EB; --virtual:#7C3AED; --lens:#0F172A; --object:#EA580C;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.app{max-width:1250px;margin:auto;padding:22px}
+header{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:16px}
+h1{margin:0;color:var(--navy);font-size:28px;letter-spacing:-.5px}
+.subtitle{margin:5px 0 0;color:var(--muted);font-size:14px}
+.badge{background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;padding:7px 11px;border-radius:999px;font-size:12px;font-weight:700}
+.layout{display:grid;grid-template-columns:285px 1fr;gap:16px}
+.panel{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:17px}
+.controls h2{font-size:15px;color:var(--navy);margin:0 0 15px}
+.control{margin:16px 0}
+.control label{display:flex;justify-content:space-between;font-size:13px;font-weight:650}
+.value{color:var(--blue);font-variant-numeric:tabular-nums}
+select,input[type=range]{width:100%}
+select{padding:9px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;color:var(--ink)}
+input[type=range]{accent-color:var(--blue)}
+.mini{font-size:11px;color:var(--muted);line-height:1.4;margin-top:5px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px}
+.stat b{display:block;color:var(--navy);font-size:12px;margin-bottom:4px}
+.stat span{font-size:13px;font-variant-numeric:tabular-nums}
+.formula{margin-top:13px;padding:11px;border-radius:10px;background:#fff;border:1px dashed #CBD5E1;font-size:13px;text-align:center}
+.note{font-size:11px;color:var(--muted);line-height:1.45;margin-top:12px}
+button{border:0;border-radius:9px;padding:9px 12px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer}
+button:hover{filter:brightness(1.12)}
+.stage{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.toolbar{padding:10px 13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.toolbar strong{color:var(--navy);font-size:14px}
+.legend{display:flex;gap:13px;font-size:11px;color:var(--muted);align-items:center}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}
+canvas{display:block;width:100%;height:auto;background:#fff}
+.bottom{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.info{border:1px solid var(--line);border-radius:14px;padding:14px}
+.info h3{margin:0 0 7px;color:var(--navy);font-size:14px}
+.info p{margin:4px 0;font-size:12px;line-height:1.5}
+.real{color:var(--real);font-weight:700}.virtual{color:var(--virtual);font-weight:700}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <h1>Thin Lens Simulator</h1>
+    <div class="subtitle">Interactive image formation • CAT Physics Outreach</div>
+  </div>
+  <div class="badge">NCERT / Cartesian sign convention</div>
+</header>
+
+<div class="layout">
+  <aside class="panel controls">
+    <h2>Experiment controls</h2>
+
+    <div class="control">
+      <label>Lens type <span class="value" id="typeLabel">Convex</span></label>
+      <select id="lensType">
+        <option value="convex">Convex lens</option>
+        <option value="concave">Concave lens</option>
+      </select>
+      <div class="mini" id="shapeNote">Converging lens. Object is on the left.</div>
+    </div>
+
+    <div class="control">
+      <label>Focal length <span class="value"><span id="fVal">100</span> px</span></label>
+      <input id="focal" type="range" min="60" max="180" step="1" value="100">
+      <div class="mini">For a convex lens f &gt; 0; for a concave lens f &lt; 0.</div>
+    </div>
+
+    <div class="control">
+      <label>Object distance <span class="value"><span id="doVal">250</span> px</span></label>
+      <input id="objDist" type="range" min="45" max="600" step="1" value="250">
+      <div class="mini">Measured from the optical centre toward the left.</div>
+    </div>
+
+    <div class="control">
+      <label>Object height <span class="value"><span id="hVal">80</span> px</span></label>
+      <input id="objHeight" type="range" min="35" max="130" step="1" value="80">
+    </div>
+
+    <button id="animateBtn">▶ Animate object movement</button>
+
+    <div class="stats">
+      <div class="stat"><b>Signed u</b><span id="uOut">−250 px</span></div>
+      <div class="stat"><b>Signed f</b><span id="fOut">+100 px</span></div>
+      <div class="stat"><b>Signed v</b><span id="vOut">+166.7 px</span></div>
+      <div class="stat"><b>Magnification</b><span id="mOut">−0.67</span></div>
+      <div class="stat"><b>Image height</b><span id="hiOut">−53.3 px</span></div>
+    </div>
+
+    <div class="formula">
+      <b>Lens equation</b><br>
+      1/f = 1/v − 1/u
+    </div>
+
+    <div class="note">
+      Blue = real ray/image • Violet dashed = virtual extension/image • Orange = object.<br>
+      Cartesian convention: object on left → u &lt; 0. Convex lens → f &gt; 0; concave lens → f &lt; 0.
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="toolbar">
+      <strong id="stateTitle">Convex lens</strong>
+      <div class="legend">
+        <span><i class="dot" style="background:#2563EB"></i>real</span>
+        <span><i class="dot" style="background:#7C3AED"></i>virtual</span>
+        <span><i class="dot" style="background:#EA580C"></i>object</span>
+      </div>
+    </div>
+    <canvas id="canvas" width="930" height="560"></canvas>
+  </main>
+</div>
+
+<div class="bottom">
+  <div class="info">
+    <h3 id="natureTitle">Real, inverted, diminished</h3>
+    <p id="natureText">The object is beyond 2F. The image forms between F and 2F on the other side.</p>
+  </div>
+  <div class="info">
+    <h3>What to notice</h3>
+    <p id="notice">Move the object through 2F and F. Watch the image position and size change according to the lens equation.</p>
+  </div>
+</div>
+</div>
+
+<script>
+const canvas=document.getElementById('canvas'), ctx=canvas.getContext('2d');
+const lensType=document.getElementById('lensType');
+const focal=document.getElementById('focal'), objDist=document.getElementById('objDist'), objHeight=document.getElementById('objHeight');
+const fVal=document.getElementById('fVal'), doVal=document.getElementById('doVal'), hVal=document.getElementById('hVal');
+const uOut=document.getElementById('uOut'), fOut=document.getElementById('fOut'), vOut=document.getElementById('vOut'), mOut=document.getElementById('mOut'), hiOut=document.getElementById('hiOut');
+const stateTitle=document.getElementById('stateTitle'), natureTitle=document.getElementById('natureTitle'), natureText=document.getElementById('natureText'), notice=document.getElementById('notice');
+const W=canvas.width,H=canvas.height, O={x:465,y:330}, AXIS=O.y;
+let anim=false, animDir=1, last=0;
+
+function fmt(x){
+  if(!Number.isFinite(x)) return '∞';
+  return Math.abs(x)>=100 ? x.toFixed(0) : x.toFixed(1);
+}
+function signed(x){return (x<0?'−':'+')+fmt(Math.abs(x));}
+
+function geometry(){
+  const F=+focal.value, do_=+objDist.value, h=+objHeight.value;
+  const convex=lensType.value==='convex';
+  const u=-do_, f=convex?F:-F;
+  // Cartesian thin-lens equation:
+  // 1/f = 1/v - 1/u  =>  1/v = 1/f + 1/u
+  const denom=(1/f)+(1/u);
+  const v=Math.abs(denom)<1e-12 ? Infinity : 1/denom;
+  const m=Number.isFinite(v)?v/u:Infinity;
+  return {F,do_,h,convex,u,f,v,m};
+}
+
+function mapX(d){return O.x+d;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+function drawArrow(x,base,h,color,dashed=false,label=''){
+  ctx.save();
+  ctx.strokeStyle=color;
+  ctx.fillStyle=color;
+  ctx.lineWidth=3;
+  if(dashed)ctx.setLineDash([7,6]);
+
+  const tipY=base-h;
+  ctx.beginPath();
+  ctx.moveTo(x,base);
+  ctx.lineTo(x,tipY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Arrowhead points in the direction from the base toward the tip.
+  const dir=h>=0 ? -1 : 1;
+  ctx.beginPath();
+  ctx.moveTo(x,tipY);
+  ctx.lineTo(x-7,tipY+12*dir);
+  ctx.lineTo(x+7,tipY+12*dir);
+  ctx.closePath();
+  ctx.fill();
+
+  if(label){
+    ctx.font='600 12px Inter,system-ui';
+    ctx.fillText(label,x-ctx.measureText(label).width/2,base+25);
+  }
+  ctx.restore();
+}
+
+function drawGrid(){
+  ctx.save();
+  ctx.strokeStyle='#F1F5F9';ctx.lineWidth=1;
+  for(let x=20;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,30);ctx.lineTo(x,H-30);ctx.stroke();}
+  for(let y=30;y<H-30;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='#CBD5E1';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(20,AXIS);ctx.lineTo(W-20,AXIS);ctx.stroke();
+  ctx.restore();
+}
+
+function drawLens(g){
+  ctx.save();
+  const x=O.x;
+
+  // Thin-lens silhouettes:
+  // Convex (converging): thick at centre, thin at edges.
+  // Concave (diverging): thin at centre, thick at edges.
+  // The optical axis passes through the centre of the lens.
+  ctx.strokeStyle='#0F172A';
+  ctx.lineWidth=5;
+  ctx.lineCap='round';
+
+  if(g.convex){
+    // Two outward-bulging surfaces.
+    ctx.beginPath();
+    ctx.moveTo(x-3,AXIS-190);
+    ctx.bezierCurveTo(x+31,AXIS-130,x+31,AXIS+130,x-3,AXIS+190);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x+3,AXIS-190);
+    ctx.bezierCurveTo(x-31,AXIS-130,x-31,AXIS+130,x+3,AXIS+190);
+    ctx.stroke();
+  }else{
+    // Two inward-curving surfaces: thin at centre, thick at edges.
+    ctx.beginPath();
+    ctx.moveTo(x-3,AXIS-190);
+    ctx.bezierCurveTo(x-31,AXIS-130,x-31,AXIS+130,x-3,AXIS+190);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x+3,AXIS-190);
+    ctx.bezierCurveTo(x+31,AXIS-130,x+31,AXIS+130,x+3,AXIS+190);
+    ctx.stroke();
+  }
+
+  // Subtle hatch marks outside the lens body, for visual distinction.
+  ctx.strokeStyle='#94A3B8';
+  ctx.lineWidth=1.4;
+  for(let y=AXIS-170;y<=AXIS+170;y+=22){
+    if(g.convex){
+      ctx.beginPath();ctx.moveTo(x-10,y);ctx.lineTo(x-21,y-7);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x+10,y);ctx.lineTo(x+21,y-7);ctx.stroke();
+    }else{
+      ctx.beginPath();ctx.moveTo(x-24,y);ctx.lineTo(x-12,y-7);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x+24,y);ctx.lineTo(x+12,y-7);ctx.stroke();
+    }
+  }
+
+  // Centre marker / optical centre.
+  ctx.fillStyle='#0F172A';
+  ctx.beginPath();ctx.arc(x,AXIS,3.5,0,Math.PI*2);ctx.fill();
+
+  ctx.restore();
+}
+
+function drawRay(x1,y1,x2,y2,color,dash=false,width=2){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;
+  ctx.setLineDash(dash?[7,6]:[]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+
+function rayEndFromSlope(x,y,slope){
+  const t=1500;
+  return {x:x+t,y:y+slope*t};
+}
+
+function drawLensRays(g){
+  const ox=mapX(-g.do_), oy=AXIS-g.h;
+  const xL=O.x, xR=O.x;
+  const ray='#2563EB', incoming='#38BDF8', virt='#7C3AED';
+
+  // Ray 1: parallel to the principal axis.
+  const y1=AXIS-g.h*0.62;
+  drawRay(ox,oy,xL,y1,incoming,false,2.1);
+
+  if(g.convex){
+    // After a convex lens, a parallel ray passes through the right focus.
+    const fx=mapX(g.F);
+    drawRay(xR,y1,fx,AXIS,ray,false,2.5);
+  }else{
+    // After a concave lens, a parallel ray diverges as though it originated
+    // at the left focal point.
+    const fx=mapX(-g.F);
+    const slope=(y1-AXIS)/(xR-fx);
+    const endX=W-20;
+    const endY=y1+slope*(endX-xR);
+    drawRay(xR,y1,endX,endY,ray,false,2.5);
+    drawRay(fx,AXIS,xR,y1,virt,true,1.7);
+  }
+
+  // Ray 2: through optical centre — undeviated in the thin-lens approximation.
+  drawRay(ox,oy,xR,AXIS,incoming,false,2.1);
+
+  if(Number.isFinite(g.v)){
+    const ix=mapX(g.v);
+    const iy=AXIS-g.m*g.h;
+    if(g.v>0){
+      drawRay(xR,AXIS,ix,iy,ray,false,2.5);
+    }else{
+      drawRay(ix,iy,xR,AXIS,virt,true,1.8);
+    }
+  }
+
+  // Ray 3: a second parallel ray to make the convergence/divergence obvious.
+  const y3=AXIS+g.h*0.62;
+  drawRay(ox,oy,xL,y3,incoming,false,1.8);
+
+  if(g.convex){
+    const fx=mapX(g.F);
+    drawRay(xR,y3,fx,AXIS,ray,false,2.1);
+  }else{
+    const fx=mapX(-g.F);
+    const slope=(y3-AXIS)/(xR-fx);
+    const endX=W-20;
+    const endY=y3+slope*(endX-xR);
+    drawRay(xR,y3,endX,endY,ray,false,2.1);
+    drawRay(fx,AXIS,xR,y3,virt,true,1.5);
+  }
+}
+
+function drawLabels(g){
+  ctx.save();ctx.font='600 12px Inter,system-ui';ctx.fillStyle='#475569';ctx.textAlign='center';
+  ctx.fillText('O',O.x,AXIS+28);
+  const fL=mapX(-g.F),fR=mapX(g.F);
+  ctx.fillText('F',fL,AXIS+28);ctx.fillText("F′",fR,AXIS+28);
+  ctx.fillStyle='#94A3B8';ctx.font='11px Inter,system-ui';
+  ctx.fillText('Principal axis',O.x+180,AXIS-9);
+  ctx.restore();
+}
+
+function draw(){
+  const g=geometry();
+  ctx.clearRect(0,0,W,H);
+  drawGrid();
+  drawLens(g);
+  drawLensRays(g);
+
+  // Focal points: for concave lens, the labelled focal points are still at
+  // +/-|f|, with the object-side focus at x = -F and image-side at +F.
+  const fL=mapX(-g.F), fR=mapX(g.F);
+  ctx.fillStyle='#2563EB';
+  ctx.beginPath();ctx.arc(fL,AXIS,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(fR,AXIS,5,0,Math.PI*2);ctx.fill();
+
+  // Object.
+  const ox=mapX(-g.do_);
+  drawArrow(ox,AXIS,g.h,'#EA580C',false,'Object');
+
+  // Image — height is m*h, including the correct sign.
+  if(Number.isFinite(g.v) && Math.abs(g.v)<1800){
+    const ix=mapX(g.v);
+    const ih=g.m*g.h;
+    if(ix>-150 && ix<W+150){
+      const col=g.v>0?'#2563EB':'#7C3AED';
+      drawArrow(ix,AXIS,ih,col,g.v<0,'Image');
+
+      ctx.save();
+      ctx.font='600 11px Inter,system-ui';
+      ctx.fillStyle=col;
+      ctx.textAlign='center';
+      const label=g.v>0?'REAL':'VIRTUAL';
+      const labelY = ih < 0 ? AXIS + Math.abs(ih)+22 : AXIS - Math.abs(ih)-12;
+      ctx.fillText(label,ix,labelY);
+      ctx.restore();
+    }
+  }else if(!Number.isFinite(g.v)){
+    ctx.save();
+    ctx.fillStyle='#B45309';
+    ctx.font='700 12px Inter,system-ui';
+    ctx.textAlign='center';
+    ctx.fillText('IMAGE AT INFINITY',W-130,AXIS-18);
+    ctx.restore();
+  }
+
+  drawLabels(g);
+  updateText(g);
+}
+
+function updateText(g){
+  fVal.textContent=g.F;doVal.textContent=g.do_;hVal.textContent=g.h;
+  uOut.textContent=signed(g.u)+' px';fOut.textContent=signed(g.f)+' px';
+  vOut.textContent=Number.isFinite(g.v)?signed(g.v)+' px':'∞';
+  mOut.textContent=Number.isFinite(g.m)?g.m.toFixed(2):'∞';
+  hiOut.textContent=Number.isFinite(g.m)?signed(g.m*g.h)+' px':'∞';
+  stateTitle.textContent=g.convex?'Convex lens':'Concave lens';
+  document.getElementById('shapeNote').textContent=g.convex?
+    'Converging lens. Object is on the left.':
+    'Diverging lens: thin at centre, thick at edges. Object is on the left.';
+
+  if(!Number.isFinite(g.v)){
+    natureTitle.textContent='Image at infinity';
+    natureText.textContent='The object is at the focal point of a converging (convex) lens. Emergent rays are parallel.';
+    notice.textContent='For u = −f, the denominator in the lens equation becomes zero and v tends to infinity.';
+    return;
+  }
+  if(g.convex){
+    if(g.do_>2*g.F){natureTitle.textContent='Real, inverted, diminished';natureText.textContent='Object beyond 2F → image between F′ and 2F′.';}
+    else if(Math.abs(g.do_-2*g.F)<2){natureTitle.textContent='Real, inverted, same size';natureText.textContent='Object at 2F → image at 2F′.';}
+    else if(g.do_>g.F){natureTitle.textContent='Real, inverted, magnified';natureText.textContent='Object between F and 2F → image beyond 2F′.';}
+    else if(Math.abs(g.do_-g.F)<2){natureTitle.textContent='Image at infinity';natureText.textContent='Object at F → emergent rays are parallel.';}
+    else {natureTitle.textContent='Virtual, erect, magnified';natureText.textContent='Object inside F → virtual, upright and magnified image on the object side.';}
+    notice.textContent='Move the object through 2F and F. The image changes continuously according to 1/f = 1/v − 1/u.';
+  }else{
+    natureTitle.textContent='Virtual, erect, diminished';
+    natureText.textContent='A concave (diverging) lens is thinner at the centre and thicker at the edges. It forms a virtual, upright and diminished image between the optical centre and the focal point on the object side.';
+    notice.textContent='Move the object: the image remains virtual and on the left, approaching the focal point as the object moves far away.';
+  }
+}
+
+function animate(t){
+  if(!anim)return;
+  if(!last)last=t;const dt=(t-last)/1000;last=t;
+  let d=+objDist.value+animDir*100*dt;
+  if(d>600){d=600;animDir=-1}if(d<45){d=45;animDir=1}
+  objDist.value=d;draw();requestAnimationFrame(animate);
+}
+document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',draw));
+document.getElementById('animateBtn').addEventListener('click',()=>{
+  anim=!anim;
+  document.getElementById('animateBtn').textContent=anim?'⏸ Pause animation':'▶ Animate object movement';
+  if(anim){last=0;requestAnimationFrame(animate);}
+});
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAT Physics — Spherical Mirror Simulator</title>
+<style>
+:root{
+  --navy:#0B1F3A; --blue:#2563EB; --violet:#7C3AED; --cyan:#06B6D4;
+  --ink:#263238; --muted:#64748B; --panel:#F8FAFC; --line:#E2E8F0;
+  --real:#2563EB; --virtual:#7C3AED; --mirror:#0F172A; --object:#EA580C;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.app{max-width:1250px;margin:auto;padding:22px}
+header{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:16px}
+h1{margin:0;color:var(--navy);font-size:28px;letter-spacing:-.5px}
+.subtitle{margin:5px 0 0;color:var(--muted);font-size:14px}
+.badge{background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;padding:7px 11px;border-radius:999px;font-size:12px;font-weight:700}
+.layout{display:grid;grid-template-columns:285px 1fr;gap:16px}
+.panel{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:17px}
+.controls h2{font-size:15px;color:var(--navy);margin:0 0 15px}
+.control{margin:16px 0}
+.control label{display:flex;justify-content:space-between;font-size:13px;font-weight:650}
+.value{color:var(--blue);font-variant-numeric:tabular-nums}
+select,input[type=range]{width:100%}
+select{padding:9px;border:1px solid #CBD5E1;border-radius:9px;background:#fff;color:var(--ink)}
+input[type=range]{accent-color:var(--blue)}
+.mini{font-size:11px;color:var(--muted);line-height:1.4;margin-top:5px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px}
+.stat b{display:block;color:var(--navy);font-size:12px;margin-bottom:4px}
+.stat span{font-size:13px;font-variant-numeric:tabular-nums}
+.formula{margin-top:13px;padding:11px;border-radius:10px;background:#fff;border:1px dashed #CBD5E1;font-size:13px;text-align:center}
+.note{font-size:11px;color:var(--muted);line-height:1.45;margin-top:12px}
+button{border:0;border-radius:9px;padding:9px 12px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer}
+button:hover{filter:brightness(1.12)}
+.stage{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.toolbar{padding:10px 13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.toolbar strong{color:var(--navy);font-size:14px}
+.legend{display:flex;gap:13px;font-size:11px;color:var(--muted);align-items:center}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}
+canvas{display:block;width:100%;height:auto;background:#fff}
+.bottom{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.info{border:1px solid var(--line);border-radius:14px;padding:14px}
+.info h3{margin:0 0 7px;color:var(--navy);font-size:14px}
+.info p{margin:4px 0;font-size:12px;line-height:1.5}
+.real{color:var(--real);font-weight:700}.virtual{color:var(--virtual);font-weight:700}
+.warning{color:#B45309;font-weight:700}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <h1>Spherical Mirror Simulator</h1>
+    <div class="subtitle">Interactive image formation • CAT Physics Outreach</div>
+  </div>
+  <div class="badge">NCERT / Cartesian sign convention</div>
+</header>
+
+<div class="layout">
+  <aside class="panel controls">
+    <h2>Experiment controls</h2>
+
+    <div class="control">
+      <label>Mirror type <span class="value" id="typeLabel">Concave</span></label>
+      <select id="mirrorType">
+        <option value="concave">Concave mirror</option>
+        <option value="convex">Convex mirror</option>
+      </select>
+      <div class="mini" id="shapeNote">Reflecting surface opens toward the object on the left.</div>
+    </div>
+
+    <div class="control">
+      <label>Focal length <span class="value"><span id="fVal">100</span> px</span></label>
+      <input id="focal" type="range" min="60" max="180" step="1" value="100">
+      <div class="mini">The radius of curvature is R = 2F.</div>
+    </div>
+
+    <div class="control">
+      <label>Object distance <span class="value"><span id="doVal">250</span> px</span></label>
+      <input id="objDist" type="range" min="45" max="600" step="1" value="250">
+      <div class="mini">Measured from the pole toward the left.</div>
+    </div>
+
+    <div class="control">
+      <label>Object height <span class="value"><span id="hVal">80</span> px</span></label>
+      <input id="objHeight" type="range" min="35" max="130" step="1" value="80">
+    </div>
+
+    <button id="animateBtn">▶ Animate object movement</button>
+
+    <div class="stats">
+      <div class="stat"><b>Signed u</b><span id="uOut">−250 px</span></div>
+      <div class="stat"><b>Signed f</b><span id="fOut">−100 px</span></div>
+      <div class="stat"><b>Signed v</b><span id="vOut">−166.7 px</span></div>
+      <div class="stat"><b>Magnification</b><span id="mOut">−0.67</span></div>
+    </div>
+
+    <div class="formula">
+      <b>Mirror equation</b><br>
+      1/f = 1/v + 1/u
+    </div>
+
+    <div class="note">
+      Blue = real ray/image • Violet dashed = virtual extension/image.<br>
+      In the Cartesian convention used here: object is on the left, so u &lt; 0. For a concave mirror f &lt; 0; for a convex mirror f &gt; 0.
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="toolbar">
+      <strong id="stateTitle">Concave mirror</strong>
+      <div class="legend">
+        <span><i class="dot" style="background:#2563EB"></i>real</span>
+        <span><i class="dot" style="background:#7C3AED"></i>virtual</span>
+        <span><i class="dot" style="background:#EA580C"></i>object</span>
+      </div>
+    </div>
+    <canvas id="canvas" width="930" height="560"></canvas>
+  </main>
+</div>
+
+<div class="bottom">
+  <div class="info">
+    <h3 id="natureTitle">Real, inverted, diminished</h3>
+    <p id="natureText">The object is beyond C. Reflected rays actually meet in front of the mirror.</p>
+  </div>
+  <div class="info">
+    <h3>What to notice</h3>
+    <p id="notice">Move the object through C, F and the region between F and P. Watch the image cross the focal region and change size.</p>
+  </div>
+</div>
+</div>
+
+<script>
+const canvas=document.getElementById('canvas'), ctx=canvas.getContext('2d');
+const mirrorType=document.getElementById('mirrorType');
+const focal=document.getElementById('focal'), objDist=document.getElementById('objDist'), objHeight=document.getElementById('objHeight');
+const fVal=document.getElementById('fVal'), doVal=document.getElementById('doVal'), hVal=document.getElementById('hVal');
+const uOut=document.getElementById('uOut'), fOut=document.getElementById('fOut'), vOut=document.getElementById('vOut'), mOut=document.getElementById('mOut');
+const stateTitle=document.getElementById('stateTitle'), natureTitle=document.getElementById('natureTitle'), natureText=document.getElementById('natureText'), notice=document.getElementById('notice');
+const W=canvas.width,H=canvas.height, POLE={x:560,y:330}, AXIS=POLE.y;
+let anim=false, animDir=1, last=0;
+
+function fmt(x){
+  if(!Number.isFinite(x)) return '∞';
+  const a=Math.abs(x);
+  if(a>=100) return x.toFixed(0);
+  return x.toFixed(1);
+}
+function signed(x){ return (x<0?'−':'+')+fmt(Math.abs(x)); }
+
+function geometry(){
+  const F=+focal.value, do_=+objDist.value, h=+objHeight.value;
+  const conc=mirrorType.value==='concave';
+  const u=-do_, f=conc?-F:F;
+  const denom=(1/f)-(1/u);
+  const v=Math.abs(denom)<1e-12 ? Infinity : 1/denom;
+  const m=Number.isFinite(v)?-v/u:Infinity;
+  return {F,do_,h,conc,u,f,v,m,R:2*F};
+}
+
+function mapX(signedDistance){
+  // Signed distance is measured from pole: left negative, right positive.
+  return POLE.x + signedDistance;
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+function drawArrow(x,base,h,color,dashed=false,label=''){
+  ctx.save();
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3;
+  if(dashed) ctx.setLineDash([7,6]);
+  ctx.beginPath(); ctx.moveTo(x,base); ctx.lineTo(x,base-h); ctx.stroke();
+  ctx.setLineDash([]);
+  const tipY=base-h;
+  ctx.beginPath(); ctx.moveTo(x,tipY); ctx.lineTo(x-7,tipY+12); ctx.lineTo(x+7,tipY+12); ctx.closePath(); ctx.fill();
+  if(label){
+    ctx.font='600 12px Inter,system-ui';
+    ctx.fillText(label,x-ctx.measureText(label).width/2,base+25);
+  }
+  ctx.restore();
+}
+
+function drawMirror(g){
+  const {F,conc,R}=g, x0=POLE.x, y0=POLE.y;
+  // Spherical arc: concave opens left; convex bulges left.
+  ctx.save();
+  ctx.strokeStyle='#0F172A'; ctx.lineWidth=5;
+  ctx.beginPath();
+  const r=R, cy=y0;
+  const n=90;
+  for(let i=0;i<=n;i++){
+    const y=y0-190 + 380*i/n;
+    const yy=y-y0;
+    const dx=Math.sqrt(Math.max(0,r*r-yy*yy));
+    const x=conc ? x0-r+dx : x0+r-dx;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // small hatch marks on back side
+  ctx.strokeStyle='#94A3B8'; ctx.lineWidth=1.5;
+  for(let y=y0-170;y<=y0+170;y+=22){
+    const yy=y-y0, dx=Math.sqrt(Math.max(0,r*r-yy*yy));
+    const x=conc ? x0-r+dx : x0+r-dx;
+    const back=conc ? -1 : 1;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+back*13,y-7); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function reflect(px,py,dx,dy,cx,cy){
+  // unit normal from sphere center to hit point
+  let nx=px-cx, ny=py-cy, nl=Math.hypot(nx,ny); nx/=nl; ny/=nl;
+  const dl=Math.hypot(dx,dy); dx/=dl; dy/=dl;
+  const dot=dx*nx+dy*ny;
+  return {dx:dx-2*dot*nx,dy:dy-2*dot*ny};
+}
+
+function intersectMirror(g, targetY){
+  const {F,conc,R}=g, x0=POLE.x,y0=POLE.y;
+  const yy=targetY-y0, dx=Math.sqrt(Math.max(0,R*R-yy*yy));
+  return {x:conc?x0-R+dx:x0+R-dx, y:targetY,
+          cx:conc?x0-R:x0+R, cy:y0};
+}
+
+function drawRay(x1,y1,x2,y2,color,dash=false,width=2){
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=width;
+  ctx.setLineDash(dash?[7,6]:[]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+
+function drawRaySystem(g){
+  const {do_,h,conc,v,F}=g;
+  const ox=mapX(-do_), oy=AXIS-h;
+  const rayColor='#2563EB', virtColor='#7C3AED';
+
+  // Paraxial textbook ray construction, deliberately kept consistent with
+  // the mirror equation. This avoids pretending that the ideal mirror
+  // equation is an exact non-paraxial spherical-aberration calculation.
+  const aperture=Math.min(72, Math.max(28, 0.28*g.R));
+
+  // Ray 1: parallel to the principal axis.
+  // Concave: reflected toward F. Convex: reflected as if it came from F.
+  const p1=intersectMirror(g, AXIS-aperture);
+  drawRay(ox,oy,p1.x,p1.y,'#38BDF8',false,2);
+
+  const fX=mapX(conc?-F:F);
+  const fY=AXIS;
+  if(conc){
+    drawRay(p1.x,p1.y,fX,fY,rayColor,false,2.4);
+  }else{
+    // Actual reflected ray travels to the right; its backward extension passes F.
+    const dx=p1.x-fX, dy=p1.y-fY;
+    drawRay(p1.x,p1.y,p1.x+dx*3.5,p1.y+dy*3.5,rayColor,false,2.4);
+    drawRay(fX,fY,p1.x,p1.y,virtColor,true,1.7);
+  }
+
+  // Ray 2: through the pole. For an ideal paraxial spherical mirror,
+  // reflection at the pole is symmetric about the principal axis.
+  const pp=intersectMirror(g, AXIS);
+  drawRay(ox,oy,pp.x,pp.y,'#38BDF8',false,2);
+  if(Number.isFinite(v)){
+    const ix=mapX(v), iy=AXIS-g.m*h;
+    // The reflected segment is drawn toward the calculated image point.
+    // For a virtual image it is shown as a dashed backward extension.
+    if(v<0) drawRay(pp.x,pp.y,ix,iy,rayColor,false,2.4);
+    else drawRay(pp.x,pp.y,ix,iy,virtColor,true,1.8);
+  }
+
+  // Ray 3: directed toward C. It retraces its path after reflection.
+  const cX=mapX(conc?-g.R:g.R);
+  const cY=AXIS;
+  const p3=intersectMirror(g, AXIS+aperture);
+  drawRay(ox,oy,p3.x,p3.y,'#38BDF8',false,1.8);
+  if(conc){
+    drawRay(p3.x,p3.y,ox,oy,rayColor,false,2.2);
+  }else{
+    // For a convex mirror, a ray aimed toward the virtual C reflects away
+    // from the mirror along the corresponding outgoing direction.
+    const dx=p3.x-cX, dy=p3.y-cY;
+    drawRay(p3.x,p3.y,p3.x+dx*3.2,p3.y+dy*3.2,rayColor,false,2.2);
+    drawRay(cX,cY,p3.x,p3.y,virtColor,true,1.6);
+  }
+}
+
+function drawLabels(g){
+  const {F,conc,R,v}=g;
+  ctx.save();ctx.font='600 12px Inter,system-ui';ctx.fillStyle='#475569';
+  ctx.textAlign='center';
+  ctx.fillText('P',POLE.x,AXIS+28);
+  ctx.fillText('Principal axis',POLE.x+180,AXIS-9);
+  const fX=mapX(conc?-F:F), cX=mapX(conc?-R:R);
+  ctx.fillText('F',fX,AXIS+28);ctx.fillText('C',cX,AXIS+28);
+  ctx.fillStyle='#94A3B8';ctx.font='11px Inter,system-ui';
+  ctx.fillText('f', (POLE.x+fX)/2,AXIS+45);
+  ctx.restore();
+}
+
+function drawGrid(){
+  ctx.save();
+  ctx.strokeStyle='#F1F5F9';ctx.lineWidth=1;
+  for(let x=20;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,30);ctx.lineTo(x,H-30);ctx.stroke();}
+  for(let y=30;y<H-30;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='#CBD5E1';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(20,AXIS);ctx.lineTo(W-20,AXIS);ctx.stroke();
+  ctx.restore();
+}
+
+function draw(){
+  const g=geometry();
+  ctx.clearRect(0,0,W,H);drawGrid();drawMirror(g);
+  drawRaySystem(g);
+
+  // Focal points
+  const fx=mapX(g.conc?-g.F:g.F), cx=mapX(g.conc?-g.R:g.R);
+  ctx.fillStyle='#2563EB';ctx.beginPath();ctx.arc(fx,AXIS,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#7C3AED';ctx.beginPath();ctx.arc(cx,AXIS,5,0,Math.PI*2);ctx.fill();
+
+  // Object
+  const ox=mapX(-g.do_);drawArrow(ox,AXIS,g.h,'#EA580C',false,'Object');
+
+  // Image
+  if(Number.isFinite(g.v) && Math.abs(g.v)<1600){
+    const ix=mapX(g.v), ih=g.m*g.h;
+    if(ix>-150 && ix<W+150){
+      drawArrow(ix,AXIS,ih,g.v<0?'#2563EB':'#7C3AED',g.v>0,'Image');
+      ctx.save();ctx.font='600 11px Inter,system-ui';ctx.fillStyle=g.v<0?'#2563EB':'#7C3AED';
+      ctx.textAlign='center';ctx.fillText(g.v<0?'REAL':'VIRTUAL',ix,AXIS+(ih<0?Math.abs(ih)+22: -Math.abs(ih)-12));ctx.restore();
+    }
+  }else if(!Number.isFinite(g.v)){
+    ctx.save();ctx.fillStyle='#B45309';ctx.font='700 12px Inter,system-ui';ctx.textAlign='center';
+    ctx.fillText('IMAGE AT INFINITY',W-130,AXIS-18);ctx.restore();
+  }
+
+  drawLabels(g);
+  updateText(g);
+}
+
+function updateText(g){
+  fVal.textContent=g.F;doVal.textContent=g.do_;hVal.textContent=g.h;
+  uOut.textContent=signed(g.u)+' px'; fOut.textContent=signed(g.f)+' px';
+  vOut.textContent=Number.isFinite(g.v)?signed(g.v)+' px':'∞';
+  mOut.textContent=Number.isFinite(g.m)?g.m.toFixed(2):'∞';
+  stateTitle.textContent=g.conc?'Concave mirror':'Convex mirror';
+  document.getElementById('shapeNote').textContent=g.conc?
+    'Reflecting surface opens toward the object on the left.':
+    'Reflecting surface bulges toward the object on the left.';
+
+  if(!Number.isFinite(g.v)){
+    natureTitle.textContent='Image at infinity';
+    natureText.textContent='The object is at the focal point. Reflected rays emerge parallel, so the image distance tends to infinity.';
+    notice.textContent='This is the singular case of the mirror equation: 1/v → 0.';
+    return;
+  }
+  if(g.conc){
+    if(g.do_>g.R){natureTitle.textContent='Real, inverted, diminished';natureText.textContent='Object beyond C → image between F and C.';}
+    else if(Math.abs(g.do_-g.R)<2){natureTitle.textContent='Real, inverted, same size';natureText.textContent='Object at C → image at C.';}
+    else if(g.do_>g.F){natureTitle.textContent='Real, inverted, magnified';natureText.textContent='Object between C and F → image beyond C.';}
+    else if(Math.abs(g.do_-g.F)<2){natureTitle.textContent='Image at infinity';natureText.textContent='Object at F → reflected rays are parallel.';}
+    else {natureTitle.textContent='Virtual, erect, magnified';natureText.textContent='Object between F and P → reflected rays diverge; their backward extensions meet behind the mirror.';}
+    notice.textContent='Move the object across C = 2F and F. The image distance changes nonlinearly, exactly as 1/f = 1/v + 1/u.';
+  }else{
+    natureTitle.textContent='Virtual, erect, diminished';
+    natureText.textContent='A convex mirror forms a virtual, upright and smaller image behind the mirror for every real object position.';
+    notice.textContent='Move the object closer/farther: the image moves behind the mirror and approaches the focal point without becoming real.';
+  }
+}
+
+function animate(t){
+  if(!anim)return;
+  if(!last)last=t;const dt=(t-last)/1000;last=t;
+  let d=+objDist.value + animDir*100*dt;
+  if(d>600){d=600;animDir=-1} if(d<45){d=45;animDir=1}
+  objDist.value=d;draw();requestAnimationFrame(animate);
+}
+document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',draw));
+document.getElementById('animateBtn').addEventListener('click',()=>{
+  anim=!anim;document.getElementById('animateBtn').textContent=anim?'⏸ Pause animation':'▶ Animate object movement';
+  if(anim){last=0;requestAnimationFrame(animate);}
+});
+draw();
+</script>
+</body>
+</html>

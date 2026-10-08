@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Photoelectric Effect: Role of Intensity</title>
+<style>
+:root{--bg:#f7f8fb;--card:#fff;--fg:#1c2230;--mut:#667085;--grid:#e3e7ee;--acc:#e8590c;--pin:#8a94a6;--metal:#9aa4b2;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1420;--card:#171e2e;--fg:#e8ecf4;--mut:#93a0b8;--grid:#2a3347;--acc:#ff8a3d;--pin:#7c879c;--metal:#6b768a}}
+:root[data-theme="dark"]{--bg:#0f1420;--card:#171e2e;--fg:#e8ecf4;--mut:#93a0b8;--grid:#2a3347;--acc:#ff8a3d;--pin:#7c879c;--metal:#6b768a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.w{max-width:920px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:0 0 2px}p.s{margin:0 0 12px;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--grid);border-radius:12px;padding:12px;margin-bottom:12px}
+canvas{width:100%;height:auto;display:block}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+label{display:block;font-size:.85rem;color:var(--mut)}label b{color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--acc)}
+select,button{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid var(--grid);background:var(--card);color:var(--fg)}
+button{cursor:pointer}
+.st{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.st div{background:var(--bg);border-radius:8px;padding:6px 10px;font-size:.78rem;color:var(--mut)}
+.st b{display:block;font-size:1.05rem;color:var(--fg)}
+.g{display:grid;grid-template-columns:3fr 2fr;gap:12px}@media(max-width:720px){.g{grid-template-columns:1fr}}
+#msg{border-left:4px solid var(--acc);padding:8px 12px;border-radius:6px;background:var(--bg)}
+.gt{font-size:.85rem;font-weight:600;margin:0 0 4px}
+</style></head><body><div class="w">
+<h1>Photoelectric effect: what does intensity do?</h1>
+<p class="s">Brighter light = more photons, not more energetic photons. Turn the intensity up and watch.</p>
+
+<div class="card"><canvas id="sim" width="880" height="430"></canvas>
+<div class="st" style="margin-top:8px">
+<div>Photon energy<b id="sE"></b></div><div>Work function φ<b id="sW"></b></div>
+<div>Max KE of electron<b id="sK"></b></div><div>Stopping voltage<b id="sV"></b></div>
+<div>Ammeter reading<b id="sI"></b></div><div>Electrons collected/s<b id="sC"></b></div></div></div>
+
+<div class="card ctl">
+<label>Intensity (photons per second): <b id="vI"></b><input id="I" type="range" min="0" max="100" value="40"></label>
+<label>Frequency: <b id="vF"></b><input id="F" type="range" min="3" max="12" step="0.1" value="8"></label>
+<label>Collector voltage: <b id="vV"></b><input id="V" type="range" min="-3" max="3" step="0.1" value="-0.7"><span style="display:block;font-weight:400"><input type="checkbox" id="auto" checked> Auto: retarding voltage so electrons turn back</span></label>
+<label>Metal<br><select id="M"><option value="2.14">Caesium (2.14 eV)</option><option value="2.28" selected>Sodium (2.28 eV)</option><option value="4.3">Zinc (4.3 eV)</option><option value="4.7">Copper (4.7 eV)</option></select>
+<button id="pin" style="margin-top:4px">📌 Pin current curve</button></label></div>
+
+<div class="card" id="msg"></div>
+
+<div class="g">
+<div class="card"><p class="gt">Photocurrent vs collector voltage</p><canvas id="g1" width="560" height="340"></canvas></div>
+<div class="card"><p class="gt">Saturation current vs intensity</p><canvas id="g2" width="400" height="340"></canvas></div></div>
+<p class="s">Tip: pin a curve, then double the intensity. The curve gets taller, but it still starts at the same stopping voltage. Next, drop the frequency below the threshold and see that intensity no longer matters.</p>
+</div>
+<script>
+const $=id=>document.getElementById(id),H=0.4136; // eV per 1e14 Hz
+const sim=$('sim'),c=sim.getContext('2d'),g1=$('g1'),a=g1.getContext('2d'),g2=$('g2'),b=g2.getContext('2d');
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let amm=0,ph=[],el=[],we=[],acc=0,hist=[],pinned={I:20,F:8,W:2.28};
+const X0=192,X1=610,WY=335,WL=(WY-245)*2+(X1+6-186);
+function wp(d){const a=WY-245,b=X1+6-186;if(d<a)return[X1+6,245+d];if(d<a+b)return[X1+6-(d-a),WY];return[186,WY-(d-a-b)]}
+const st=()=>{const s={I:+$('I').value,F:+$('F').value,V:+$('V').value,W:+$('M').value},au=$('auto').checked;
+ if(au){s.V=K(s)>0?-0.7*K(s):0;$('V').value=Math.round(s.V*10)/10}$('V').disabled=au;return s};
+const K=s=>Math.max(0,H*s.F-s.W);
+const gf=(V,k)=>{const x=Math.min(1,Math.max(0,(V+k)/(k+1.2)));return 1-(1-x)*(1-x)};
+const cur=(s,V)=>H*s.F>s.W?s.I*gf(V,K(s)):0;
+const col=f=>f>7.5?'#b388ff':`hsl(${Math.min(270,Math.max(0,(f-4)/3.5*270))},100%,55%)`;
+$('pin').onclick=()=>{pinned={...st()}};
+
+function step(s){
+ const E=H*s.F,emit=E>s.W,k=K(s);
+ acc+=s.I/100*0.5;
+ while(acc>=1){acc--;ph.push({x:60,y:75+Math.random()*150})}
+ for(const p of ph){p.x+=6;if(p.x>=X0){p.dead=1;if(emit)el.push({s:0,d:1,k0:k*(1-0.6*Math.pow(Math.random(),2)),y:p.y})}}
+ ph=ph.filter(p=>!p.dead);
+ for(const e of el){const ke=e.k0+s.V*e.s;
+  if(e.d>0&&ke<=0)e.d=-1;
+  e.s+=e.d*0.011*Math.sqrt(Math.max(ke,0.06));
+  if(e.s>=1){e.gone=1;hist.push(performance.now());we.push({d:0})}if(e.s<=0&&e.d<0)e.gone=1}
+ el=el.filter(e=>!e.gone);
+ for(const w of we){w.d+=4;if(w.d>=WL)w.gone=1}we=we.filter(w=>!w.gone);
+}
+function drawSim(s){
+ const w=880,h=300,fg=css('--fg'),m=css('--mut');c.clearRect(0,0,w,h);
+ const colr=col(s.F),uv=s.F>7.5,al=0.35+0.65*s.I/100;
+ // lamp
+ c.fillStyle=m;c.fillRect(20,125,26,50);c.fillStyle=colr;c.globalAlpha=al;c.beginPath();c.arc(54,150,13,0,7);c.fill();c.globalAlpha=1;
+ c.fillStyle=m;c.font='12px system-ui';c.fillText(uv?'UV light':'Light',16,190);
+ // plates
+ c.fillStyle=css('--metal');c.fillRect(180,55,12,190);c.fillRect(X1,55,12,190);
+ c.fillStyle=fg;c.fillText('Emitter',128,262);c.fillText('Collector',X1+18,262);
+ c.fillStyle=s.V>=0?'#d9480f':'#1971c2';c.fillText(`Collector ${s.V>=0?'+':''}${s.V.toFixed(1)} V`,X1-36,40);
+ c.fillStyle=m;c.fillText('φ = '+s.W+' eV',152,46);
+ // photons (wavy)
+ for(const p of ph){c.strokeStyle=colr;c.lineWidth=2;c.beginPath();for(let i=0;i<=14;i++){const x=p.x-i*1.6;c.lineTo(x,p.y+Math.sin(i*1.2+p.x*.2)*3)}c.stroke();
+  c.fillStyle=colr;c.beginPath();c.arc(p.x,p.y,3,0,7);c.fill()}
+ // electrons
+ for(const e of el){const x=X0+e.s*(X1-X0);c.fillStyle='#3b82f6';c.beginPath();c.arc(x,e.y,4.5,0,7);c.fill();
+  c.fillStyle='#fff';c.font='bold 8px system-ui';c.fillText('−',x-2.5,e.y+3)}
+ // legend
+ c.font='12px system-ui';c.fillStyle=m;c.fillText('● photon      ',700,24);c.fillStyle='#3b82f6';c.fillText('● electron',770,24);
+}
+function drawCircuit(s){
+ const m=css('--mut'),fg=css('--fg'),bg=css('--card'),blue='#3b82f6';
+ c.strokeStyle=m;c.lineWidth=2.5;c.beginPath();c.moveTo(X1+6,245);c.lineTo(X1+6,WY);c.lineTo(186,WY);c.lineTo(186,245);c.stroke();
+ for(const w of we){const[x,y]=wp(w.d);c.fillStyle=blue;c.beginPath();c.arc(x,y,4.5,0,7);c.fill();c.fillStyle='#fff';c.font='bold 9px system-ui';c.fillText('−',x-2.5,y+3)}
+ // battery
+ const bx=290;c.fillStyle=bg;c.fillRect(bx-26,WY-20,52,40);c.strokeStyle=fg;c.lineWidth=3;
+ const posRight=s.V>=0,lx=posRight?bx+6:bx-6,sx=posRight?bx-6:bx+6;
+ c.beginPath();c.moveTo(lx,WY-18);c.lineTo(lx,WY+18);c.stroke();c.lineWidth=5;c.beginPath();c.moveTo(sx,WY-9);c.lineTo(sx,WY+9);c.stroke();
+ c.lineWidth=2.5;c.strokeStyle=m;c.beginPath();c.moveTo(bx-26,WY);c.lineTo(sx<lx?sx:lx,WY);c.moveTo(Math.max(sx,lx),WY);c.lineTo(bx+26,WY);c.stroke();
+ c.fillStyle=fg;c.font='12px system-ui';c.fillText('Variable source',bx-42,WY+36);c.fillText((s.V>=0?'+':'')+s.V.toFixed(1)+' V  (collector '+(s.V>=0?'positive':'negative')+')',bx-62,WY+52);
+ // ammeter with dial + digital reading
+ const ax=520,now=performance.now();hist=hist.filter(t=>now-t<1000);const rate=hist.length;amm+=(rate*20/30-amm)*0.08;
+ c.fillStyle=bg;c.beginPath();c.arc(ax,WY,34,0,7);c.fill();c.strokeStyle=fg;c.lineWidth=2.5;c.stroke();
+ c.lineWidth=1.5;c.font='9px system-ui';c.fillStyle=m;
+ for(let v=0;v<=20;v+=5){const a=Math.PI+v/20*Math.PI,ca=Math.cos(a),sa=Math.sin(a);c.beginPath();c.moveTo(ax+ca*24,WY+sa*24);c.lineTo(ax+ca*30,WY+sa*30);c.stroke();c.fillText(v,ax+ca*17-3,WY+sa*17+3)}
+ const na=Math.PI+Math.min(1,amm/20)*Math.PI;c.strokeStyle=css('--acc');c.lineWidth=3;c.beginPath();c.moveTo(ax,WY);c.lineTo(ax+Math.cos(na)*27,WY+Math.sin(na)*27);c.stroke();
+ c.fillStyle=fg;c.beginPath();c.arc(ax,WY,3,0,7);c.fill();c.font='bold 13px system-ui';c.fillText('A',ax-4,WY+20);
+ c.strokeStyle=fg;c.lineWidth=2;c.fillStyle=bg;c.fillRect(ax-46,WY+42,92,26);c.strokeRect(ax-46,WY+42,92,26);
+ c.fillStyle=css('--acc');c.font='bold 16px system-ui';c.fillText(amm.toFixed(1)+' µA',ax-34,WY+61);
+ c.fillStyle=m;c.font='11px system-ui';c.fillText('electrons collected: '+rate+'/s',ax-58,WY+84);
+ // conventional current arrow
+ c.strokeStyle=m;c.fillStyle=m;c.lineWidth=2;c.beginPath();c.moveTo(335,WY-12);c.lineTo(375,WY-12);c.stroke();c.beginPath();c.moveTo(375,WY-17);c.lineTo(383,WY-12);c.lineTo(375,WY-7);c.fill();
+ c.font='11px system-ui';c.fillText('conventional current',327,WY-20);c.fillText('electrons flow the other way',327,WY+28);
+ if(s.V<0&&K(s)>0){c.fillStyle=css('--acc');c.font='12px system-ui';c.fillText('Slow electrons are pushed back to the emitter. Only the fastest reach the collector.',230,292)}
+}
+function axes(ctx,w,h,xl,yl,xmin,xmax,ymax,xt){
+ const p={l:46,r:14,t:12,b:38},fg=css('--fg'),gr=css('--grid'),m=css('--mut');ctx.clearRect(0,0,w,h);
+ ctx.strokeStyle=gr;ctx.fillStyle=m;ctx.font='11px system-ui';ctx.lineWidth=1;
+ const X=v=>p.l+(v-xmin)/(xmax-xmin)*(w-p.l-p.r),Y=v=>h-p.b-v/ymax*(h-p.t-p.b);
+ for(let v=0;v<=ymax;v+=ymax/4){ctx.beginPath();ctx.moveTo(p.l,Y(v));ctx.lineTo(w-p.r,Y(v));ctx.stroke();ctx.fillText(v,8,Y(v)+4)}
+ for(const v of xt){ctx.beginPath();ctx.moveTo(X(v),p.t);ctx.lineTo(X(v),h-p.b);ctx.stroke();ctx.fillText(v,X(v)-6,h-p.b+14)}
+ ctx.strokeStyle=fg;ctx.beginPath();ctx.moveTo(p.l,p.t);ctx.lineTo(p.l,h-p.b);ctx.lineTo(w-p.r,h-p.b);ctx.stroke();
+ ctx.fillStyle=fg;ctx.font='12px system-ui';ctx.fillText(xl,(w+p.l)/2-60,h-6);ctx.save();ctx.translate(13,h/2+50);ctx.rotate(-Math.PI/2);ctx.fillText(yl,0,0);ctx.restore();
+ return{X,Y}
+}
+function drawG1(s){
+ const {X,Y}=axes(a,560,340,'Collector voltage (V)','Photocurrent (arb. units)',-3,3,100,[-3,-2,-1,0,1,2,3]);
+ const line=(q,color,dash,wd)=>{a.strokeStyle=color;a.lineWidth=wd;a.setLineDash(dash);a.beginPath();
+  for(let V=-3;V<=3.001;V+=0.05){const y=cur(q,V);V<-2.99?a.moveTo(X(V),Y(y)):a.lineTo(X(V),Y(y))}a.stroke();a.setLineDash([])};
+ line(pinned,css('--pin'),[6,5],2);line(s,css('--acc'),[],3);
+ const k=K(s);if(k>0){a.strokeStyle=css('--mut');a.setLineDash([3,4]);a.beginPath();a.moveTo(X(-k),Y(0));a.lineTo(X(-k),Y(100));a.stroke();a.setLineDash([]);
+  a.fillStyle=css('--fg');a.font='11px system-ui';a.fillText('−V₀ = −'+k.toFixed(2)+' V',Math.min(X(-k)+4,440),Y(95))}
+ a.fillStyle=css('--acc');a.beginPath();a.arc(X(s.V),Y(cur(s,s.V)),6,0,7);a.fill();
+ a.font='11px system-ui';a.fillStyle=css('--pin');a.fillText('- - pinned curve',70,24);a.fillStyle=css('--acc');a.fillText('— live curve',70,40);
+}
+function drawG2(s){
+ const {X,Y}=axes(b,400,340,'Intensity','Saturation current',0,100,100,[0,25,50,75,100]);
+ const on=H*s.F>s.W;b.strokeStyle=css('--acc');b.lineWidth=3;b.beginPath();b.moveTo(X(0),Y(0));b.lineTo(X(100),Y(on?100:0));b.stroke();
+ b.fillStyle=css('--acc');b.beginPath();b.arc(X(s.I),Y(on?s.I:0),6,0,7);b.fill();
+ if(!on){b.fillStyle=css('--fg');b.font='12px system-ui';b.fillText('Below threshold: always zero',90,Y(10)-12)}
+}
+function ui(s){
+ const E=H*s.F,k=K(s),on=E>s.W,f0=s.W/H;
+ $('vI').textContent=s.I+'%';$('vF').textContent=s.F.toFixed(1)+'×10¹⁴ Hz ('+(s.F>7.5?'UV':'visible')+')';$('vV').textContent=(s.V>0?'+':'')+s.V.toFixed(1)+' V';
+ $('sE').textContent=E.toFixed(2)+' eV';$('sW').textContent=s.W+' eV';$('sK').textContent=on?k.toFixed(2)+' eV':'no emission';
+ $('sV').textContent=on?k.toFixed(2)+' V':'—';$('sI').textContent=amm.toFixed(1)+' µA';
+ $('sC').textContent=hist.length;
+ $('msg').innerHTML=on?`<b>Photon energy (${E.toFixed(2)} eV) &gt; φ.</b> Every absorbed photon can free one electron. At <b>${s.I}%</b> intensity there are more photons per second, so more electrons per second (current ↑). But each photon still carries the same energy, so max KE stays <b>${k.toFixed(2)} eV</b> and the stopping voltage does not move. Intensity changes <i>how many</i>, not <i>how energetic</i>.`
+ :`<b>Photon energy (${E.toFixed(2)} eV) &lt; φ (${s.W} eV).</b> No single photon has enough energy to free an electron, and electrons can't pool energy from several photons. Max brightness changes nothing here. Raise the frequency above <b>${f0.toFixed(1)}×10¹⁴ Hz</b> (threshold) to see emission.`;
+}
+function loop(){const s=st();step(s);drawSim(s);drawCircuit(s);drawG1(s);drawG2(s);ui(s);requestAnimationFrame(loop)}
+loop();
+</script></body></html>
